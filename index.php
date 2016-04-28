@@ -13,17 +13,17 @@
 
 
     $db_host = "104.130.32.112";
-    $db_user = "root";
-    $db_pass = "mysql#1!";
-    $db_name = "convotesting";
+    $db_user = "adminDB";
+    $db_pass = "t0p\$ecret";
+    $db_name = "infinitesting";
 
     // Intialize the database connection
     $link = mysqli_connect ($db_host, $db_user, $db_pass, $db_name);
 
     // Verify that we have a valid connection
     if (!$link) {
-      echo "Connection Error: " . mysqli_connect_error();
-      die();
+        echo "Connection Error: " . mysqli_connect_error();
+        die();
     }
 
     function sanitize($data) {
@@ -65,11 +65,40 @@
             $ccNum = sanitize($_POST["ccNum"]);
             $expDate = sanitize($_POST["month"] . "/" . $_POST["year"]);
             $cvn = sanitize($_POST["cvn"]);
-            mysqli_query($link, "CALL insert_cc_data('$fName', '$lName', '$zipcode', '$ccNum', '$expDate', '$cvn', '$ccNum', '$expDate', '$cvn');");
 
-           echo "<h2 class='headerPages'>The credit card information was added to database successfully!</h2>";
+            $size = mcrypt_get_iv_size(MCRYPT_CAST_256, MCRYPT_MODE_CFB);
+            $iv = mcrypt_create_iv($size, MCRYPT_DEV_RANDOM);
+            $intermediateSalt = md5(uniqid(rand(),true));
+            $salt = substr($intermediateSalt,0,MAX_LENGTH);
+            $hash = hash("md5", $ccNum . $salt);
+            $encryptCC = mcrypt_encrypt(MCRYPT_CAST_256, $hash, $ccNum, MCRYPT_MODE_CFB, $iv);
+
+
+            $encryptExp;
+            $encryptCvn;
+
+            mysqli_query($link, "CALL insert_cc_data('$fName', '$lName', '$zipcode', '$encryptCC', '$expDate', '$cvn', '$ccNum', '$expDate', '$cvn');");
+            echo testAllEncryptions($encryptCC);
+            echo "<h2 class='headerPages'>The credit card information was added to database successfully!</h2>";
             die();
         }
+    }
+
+    function testAllEncryptions($cc){
+        $size = mcrypt_get_iv_size(MCRYPT_CAST_256, MCRYPT_MODE_CFB);
+        $iv = mcrypt_create_iv($size, MCRYPT_DEV_RANDOM);
+        $query = mysqli_query($link, "SELECT * from creditcard_data;");
+
+        while($row = mysqli_fetch_assoc($query)){
+            $decryptCC = mcrypt_decrypt(MCRYPT_CAST_256, $row['hash'], $row['cc_number'], MCRYPT_MODE_CFB, $iv);
+            if($decryptCC === $row['test_cc_number']) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        
     }
     ?>
 
@@ -139,20 +168,20 @@
             <select name="month">
 
                 <?php
-                        for($i = 1; $i < count($months); $i++){
-                            $option = "<option ";
+                for($i = 1; $i < count($months); $i++){
+                    $option = "<option ";
 
-                            if($months[$i] === date('F')){
-                               $option .= "selected ='selected'";
+                    if($months[$i] === date('F')){
+                        $option .= "selected ='selected'";
 
-                            }
+                    }
 
-                             $option .= "value='" . (($i < 10) ? "0" . $i : $i) . "'>";
+                    $option .= "value='" . (($i < 10) ? "0" . $i : $i) . "'>";
 
 
-                             $option .= $months[$i] . "</option>";
-                            echo $option;
-                        }
+                    $option .= $months[$i] . "</option>";
+                    echo $option;
+                }
 
 
                 ?>
@@ -162,11 +191,11 @@
             <!-- year -->
             <select name="year">
                 <?php
-                        $year = date('y');
+                $year = date('y');
 
-                        for($i = 0; $i <= 5; $i++){
-                            echo "<option value='" . ($year + $i) ."'>" . ($year + $i) . "</option>";
-                        }
+                for($i = 0; $i <= 5; $i++){
+                    echo "<option value='" . ($year + $i) ."'>" . ($year + $i) . "</option>";
+                }
                 ?>
             </select>
             <br />
