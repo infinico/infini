@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
     <link href="css/style.css" rel=stylesheet />
@@ -37,15 +37,17 @@
         $salt = substr($intermediateSalt,0,MAX_LENGTH);
         $hash = hash("md5", $salt . $data);
         $encryptData = mcrypt_encrypt(MCRYPT_CAST_256, $hash, $data, MCRYPT_MODE_CFB, $iv);
-        return array("encrypt" => $iv . $encryptData, "hash" => $hash);
+        // it is necessary to encode into base 64
+        return array("encrypt" => base64_encode($iv . $encryptData), "hash" => $hash);
     }
 
     function decrypt($hash, $data){
         // decrypting encrypted data based on the hash and a IV which was a part of the data.
         // separating the encrypted data from the iv that was appended together.
-        $testIv = substr($data, 0, SIZE);
+        $data = base64_decode($data);
+        $iv = substr($data, 0, SIZE);
         $encryptedData = substr($data,SIZE);
-        return mcrypt_decrypt(MCRYPT_CAST_256, $hash, $encryptedData, MCRYPT_MODE_CFB,$testIv);
+        return mcrypt_decrypt(MCRYPT_CAST_256, $hash, $encryptedData, MCRYPT_MODE_CFB,$iv);
     }
 
     function formatDate($tempDate){
@@ -81,25 +83,32 @@
         }
 
         if($errorFirst == "" && $errorLast == "" &&  $errorCVN == "" && $errorPosition == "" && $errorLocation == ""){
+            global $link;
+            $stmt = $link->prepare("CALL insert_cc_data(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssssssssss", $fName, $lName, $zipcode, $encryptCC, $encryptExpDate, $encryptCVN, $ccNum, $expDate, $cvn, $encryptCCHash, $encryptExpDateHash, $encryptCVNHash);
+
+            // sanitizing inputs
             $fName = sanitize($_POST["fName"]);
             $lName = sanitize($_POST["lName"]);
             $zipcode = sanitize($_POST["zipcode"]);
             $ccNum = sanitize($_POST["ccNum"]);
             $expDate = sanitize($_POST["month"] . "/" . $_POST["year"]);
             $cvn = sanitize($_POST["cvn"]);
-            // encrypted cc
-            $encryptCC = encrypt($ccNum);
-            //$encryptCC = sanitize($encryptCC);
-            // encrypted expiration date
-            $encryptExpDate = encrypt($expDate);
-           // $encryptExpDate = sanitize($encryptExpDate);
-            // encrypted CVN
-            $encryptCVN = encrypt($cvn);
-            //$encryptCVN = sanitize($encryptCVN);
-            echo "\nCALL insert_cc_data('$fName', '$lName', '$zipcode', '{$encryptCC["encrypt"]}', '{$encryptExpDate["encrypt"]}', '{$encryptCVN["encrypt"]}'," 
-                    . "'$ccNum', '$expDate', '$cvn', '{$encryptCC["hash"]}', '{$encryptExpDate["hash"]}', '{$encryptCVN["hash"]}');";
 
-            mysqli_query($link, "CALL insert_cc_data('$fName', '$lName', '$zipcode', '{$encryptCC["encrypt"]}', '{$encryptExpDate["encrypt"]}', '{$encryptCVN["encrypt"]}','$ccNum', '$expDate', '$cvn', '{$encryptCC["hash"]}', '{$encryptExpDate["hash"]}', '{$encryptCVN["hash"]}');");
+            // encrypted cc
+            $encryptArray       = encrypt($ccNum);
+            $encryptCC          = $encryptArray["encrypt"];
+            $encryptCCHash      = $encryptArray["hash"];
+            // encrypted expiration date
+            $encryptArray       = encrypt($expDate);
+            $encryptExpDate     = $encryptArray["encrypt"];
+            $encryptExpDateHash = $encryptArray["hash"];
+            // encrypted CVN
+            $encryptArray       = encrypt($cvn);
+            $encryptCVN         = $encryptArray["encrypt"];
+            $encryptCVNHash     = $encryptArray ["hash"];
+          
+            $stmt->execute();
             //echo "<h2 class='headerPages'>The credit card information was added to database successfully!</h2>";
             //die();
         }
@@ -186,7 +195,7 @@
         <?php
             $result = mysqli_query($link, "SELECT * from creditcard_data;");
                 while($row = mysqli_fetch_assoc($result)){
-                    echo "name: " . $row['fName'] . " " . $row['lName'] .
+                    echo "<p>name: " . $row['fName'] . " " . $row['lName'] .
                          "\ndecrypted cc number: " . decrypt($row['hash_cc_number'], $row['cc_number']) .
                          "\tactual cc number: " . $row['test_cc_number'] .
                          "\ndecrypted exp date: " . decrypt($row['hash_expiration_date'], $row['expiration_date']) .
@@ -194,7 +203,7 @@
                          "\ndecrypted cvn: " . decrypt($row['hash_cvn'], $row['cvn']) .
                          "\tactual cvn: " . $row['test_cvn'] .
                          "\nzip code: " . $row['zip_code'] .
-                         "\n" . formatdate($row['created_at']);
+                         "\n" . formatdate($row['created_at']) . "</p>";
                 }
         ?>
     </div>
