@@ -1,7 +1,7 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
-    <link href="css/style.css" rel=stylesheet />
+    <link href="../css/style.css" rel=stylesheet />
     <title>Infini</title>
 </head>
 
@@ -14,21 +14,17 @@
     $db_user = "adminDB";
     $db_pass = "t0p\$ecret";
     $db_name = "infinitesting";
-
     // Intialize the database connection
     $link = mysqli_connect ($db_host, $db_user, $db_pass, $db_name);
-
     // Verify that we have a valid connection
     if (!$link) {
       echo "Connection Error: " . mysqli_connect_error();
       die();
     }
-
     function sanitize($data) {
         global $link;
         return htmlentities(strip_tags(mysqli_real_escape_string($link, $data)));
     }
-
     function encrypt($data){
         // encrypting data based on the Initialization Vector (iv) and a random "SALT".
         // must return in an array for effective access.
@@ -40,7 +36,6 @@
         // it is necessary to encode into base 64
         return array("encrypt" => base64_encode($iv . $encryptData), "hash" => $hash);
     }
-
     function decrypt($hash, $data){
         // decrypting encrypted data based on the hash and a IV which was a part of the data.
         // separating the encrypted data from the iv that was appended together.
@@ -49,22 +44,18 @@
         $encryptedData = substr($data,SIZE);
         return mcrypt_decrypt(MCRYPT_CAST_256, $hash, $encryptedData, MCRYPT_MODE_CFB,$iv);
     }
-
     function formatDate($tempDate){
         $date = date_create($tempDate);
         $date = date_format($date, '\S\u\b\m\i\t\t\e\d \o\n F d, Y \a\t h:i:s a');
         return $date;
     }
-
     $months = array(1 => "January", 2 =>"February",3 =>"March", 4 =>"April",5 => "May",6 => "June",7=>"July", 8 => "August",9 => "September", 10 => "October", 11 => "November", 12 => "December");
-
      $errorFirst = $errorLast = $errorZip = $errorPosition = $errorCVN = $errorLocation = "";
     if(isset($_POST["submit"])) {
         
         if(empty($_POST["fName"])) {
             $errorFirst = "<span class='error'>Please enter first name</span>";
         }
-
         if(empty($_POST["lName"])) {
             $errorLast = "<span class='error'>Please enter first name</span>";
         }
@@ -77,16 +68,13 @@
         if(empty($_POST["month"]) && empty($_POST["year"])) {
             $errorLocation = "<span class='error'>Please enter the expiration date </span>";
         }
-
         if(empty($_POST["cvn"])) {
             $errorCVN = "<span class='error'>Please enter the CV number</span>";
         }
-
         if($errorFirst == "" && $errorLast == "" &&  $errorCVN == "" && $errorPosition == "" && $errorLocation == ""){
             global $link;
-            $stmt = $link->prepare("CALL insert_cc_data(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssssssssss", $fName, $lName, $zipcode, $encryptCC, $encryptExpDate, $encryptCVN, $ccNum, $expDate, $cvn, $encryptCCHash, $encryptExpDateHash, $encryptCVNHash);
-
+            $stmt = $link->prepare("CALL insert_cc_data(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssssss", $fName, $lName, $zipcode, $encryptCC, $encryptExpDate, $encryptCVN, $encryptCCHash, $encryptExpDateHash, $encryptCVNHash);
             // sanitizing inputs
             $fName = sanitize($_POST["fName"]);
             $lName = sanitize($_POST["lName"]);
@@ -94,7 +82,6 @@
             $ccNum = sanitize($_POST["ccNum"]);
             $expDate = sanitize($_POST["month"] . "/" . $_POST["year"]);
             $cvn = sanitize($_POST["cvn"]);
-
             // encrypted cc
             $encryptArray       = encrypt($ccNum);
             $encryptCC          = $encryptArray["encrypt"];
@@ -113,7 +100,6 @@
             //die();
         }
     }
-
 ?>
 
     <h3 class='index__splash--description--secondary is__text--centered is__text--darker puffer puffer--top'>
@@ -124,7 +110,6 @@
                 margin-left: 120px;
            }
            input{
-
                display: inline-block;
                 float: right;
                 margin-right: 60%;
@@ -135,11 +120,33 @@
             label{
                 clear: both;
             }
-
            select{
                 width: 9.5%;
                 margin-bottom: -30px;
             }
+        
+        #view{
+            background-color: white;
+            width: 900px;
+            margin-top: 100px;
+            margin-left: 250px;
+        }
+        
+        p{
+            padding-left: 20px;
+        }
+        
+        #submission p{
+            font-size: 10pt; 
+            padding-left:  600px;
+            padding-bottom: 10px;
+        }
+        
+        #ccInfo p{
+            font-size: 14pt;
+            padding-top: 10px;
+        }
+        
        </style>
     <div class="container">
         <form action="index.php" method="post">
@@ -167,7 +174,6 @@
                                $option .= "selected ='selected'";
                            }
                            $option .= "value='" . (($i < 10) ? "0" . $i : $i) . "'>";
-
                             $option .= $months[$i] . "</option>";
                            echo $option;
                        }
@@ -177,7 +183,6 @@
             <select name="year">
                       <?php
                         $year = date('y');
-
                         for($i = 0; $i <= 5; $i++){
                            echo "<option value='" . ($year + $i) ."'>" . ($year + $i) . "</option>";
                        }
@@ -195,15 +200,12 @@
         <?php
             $result = mysqli_query($link, "SELECT * from creditcard_data;");
                 while($row = mysqli_fetch_assoc($result)){
-                    echo "<p>name: " . $row['fName'] . " " . $row['lName'] .
-                         "\ndecrypted cc number: " . decrypt($row['hash_cc_number'], $row['cc_number']) .
-                         "\tactual cc number: " . $row['test_cc_number'] .
-                         "\ndecrypted exp date: " . decrypt($row['hash_expiration_date'], $row['expiration_date']) .
-                         "\tactual exp date: " . $row['test_expiration_date'] .
-                         "\ndecrypted cvn: " . decrypt($row['hash_cvn'], $row['cvn']) .
-                         "\tactual cvn: " . $row['test_cvn'] .
-                         "\nzip code: " . $row['zip_code'] .
-                         "\n" . formatdate($row['created_at']) . "</p>";
+                    echo "<div id='ccInfo'><p>Name: " . $row['fName'] . " " . $row['lName'] . "<br/>" .
+                         "\nCredit Card Number: " . decrypt($row['hash_cc_number'], $row['cc_number']) . "<br/>" .
+                         "\nExpiration date: " . decrypt($row['hash_expiration_date'], $row['expiration_date']) . "<br/>" .
+                         "\nCVN: " . decrypt($row['hash_cvn'], $row['cvn']) . "<br/>" .
+                         "\nZip Code: " . $row['zip_code'] . "</p></div>" .
+                         "<div id='submission'><p>" .  formatdate($row['created_at']) . "</p></div></p>";
                 }
         ?>
     </div>
